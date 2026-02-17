@@ -57,14 +57,47 @@ tests/
 
 **Database is optional** — Postgres stores rate quotes and audit logs, but the rating service works fine without it. DB errors are caught and logged, never propagated to the caller. The core rate flow shouldn't break because of a database issue.
 
-## What I'd Improve
+## 🚀 Future Roadmap & Improvements
 
-- Rate caching — check for recent quotes on the same lane before calling UPS. Schema already supports it.
-- Retry with exponential backoff and jitter for transient failures. Right now we only retry once on auth failures.
-- Circuit breaker — if UPS is returning 500s consistently, fail fast instead of hammering them.
-- Structured JSON logging with request IDs, timing, and masked credentials.
-- Client-side rate limiting to avoid hitting 429s in the first place.
-- OpenAPI spec generation if we add an HTTP API layer on top.
+If I had more time, here are the system design improvements I would implement to make this service production-ready at scale:
+
+### 1. Layer 2 Caching (Redis)
+**Goal:** Reduce API costs and improve latency for frequent routes.
+- **Strategy:** Cache rate quotes for 1 hour keyed by a hash of `origin + destination + total_weight`.
+- **Implementation:**
+  - Check Redis before calling `carrier.getRates()`.
+  - Use a **stale-while-revalidate** pattern: return cached data immediately, then fetch fresh rates in the background to update the cache.
+  - **Benefit:** Massive performance boost for common lanes (e.g., "NY to LA, 1lb package").
+
+### 2. Circuit Breaker Pattern
+**Goal:** Prevent cascading failures when simple timeouts aren't enough.
+- **Strategy:** If UPS returns 500s or timeouts > 50% of the time, **stop calling them** for 30 seconds.
+- **Implementation:**
+  - Wrap `carrier.getRates()` in a state machine (Closed → Open → Half-Open).
+  - **Fail Fast:** Immediately return "UPS Temporarily Unavailable" without waiting for a 15s timeout.
+  - **Benefit:** Protects our system resources and allows UPS time to recover.
+
+### 3. Observability & Metrics
+**Goal:** Debug production issues without guessing.
+- **Strategy:** Structured JSON logging and APM metrics.
+- **Implementation:**
+  - Log every outbound carrier request with `request_id`, `latency_ms`, and `status_code` (masking PII/credentials).
+  - Emit metrics: `rates.ups.success`, `rates.ups.failure`, `rates.ups.latency_p99`.
+  - **Benefit:** We can set alerts like "Page duty if UPS error rate > 5%".
+
+### 4. Resiliency: Exponential Backoff
+**Goal:** Handle transient network blips gracefully.
+- **Strategy:** Retry failed requests with increasing delays (100ms, 200ms, 400ms).
+- **Implementation:**
+  - Apply only to retryable errors (5xx, Network Errors).
+  - Add **Jitter** (randomness) to prevent thundering herd problems (where all retries hit at once).
+
+### 5. Client-Side Rate Limiting
+**Goal:** Be a good citizen of the UPS API.
+- **Strategy:** Rate limit our own outgoing requests.
+- **Implementation:**
+  - Use a **Token Bucket** algorithm locally or in Redis.
+  - Limit to X requests/sec. Queue excess requests or reject them immediately to avoid getting banned by UPS.
 
 ## Tests
 
