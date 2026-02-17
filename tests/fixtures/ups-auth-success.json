@@ -1,0 +1,8 @@
+{
+    "access_token": "eyJraWQiOiI2NGM0YjcxNS0..._stubbed_token",
+    "token_type": "Bearer",
+    "issued_at": "1708200000000",
+    "client_id": "test_client_id",
+    "expires_in": "14399",
+    "status": "approved"
+}
