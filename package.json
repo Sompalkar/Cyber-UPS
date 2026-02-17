@@ -4,11 +4,12 @@
   "description": "Carrier integration service",
   "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "demo": "tsx src/cli.ts",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
